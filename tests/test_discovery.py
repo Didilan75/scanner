@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock, patch
+import pytest
+import nmap
 from discovery import discover_hosts
 
 
@@ -22,7 +24,8 @@ def test_discover_hosts_returns_only_alive():
     with patch('discovery.nmap.PortScanner', return_value=mock_nm):
         result = discover_hosts('192.168.1.0/24')
 
-    assert result == ['192.168.1.1', '192.168.1.10']
+    assert set(result) == {'192.168.1.1', '192.168.1.10'}
+    assert len(result) == 2
     mock_nm.scan.assert_called_once_with(hosts='192.168.1.0/24', arguments='-sn')
 
 
@@ -32,3 +35,10 @@ def test_discover_hosts_returns_empty_when_no_hosts():
         result = discover_hosts('10.0.0.0/24')
 
     assert result == []
+
+
+def test_discover_hosts_raises_on_nmap_error():
+    with patch('discovery.nmap.PortScanner') as mock_cls:
+        mock_cls.return_value.scan.side_effect = nmap.PortScannerError('permission denied')
+        with pytest.raises(RuntimeError, match='nmap ping sweep failed'):
+            discover_hosts('192.168.1.0/24')
