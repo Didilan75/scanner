@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock, patch
+import pytest
+import nmap
 from port_scanner import scan_host, PortResult
 
 
@@ -20,7 +22,7 @@ def _make_mock_scanner(ip: str, tcp_ports: dict[int, dict]):
     mock_host = MagicMock()
     mock_host.all_protocols.return_value = ['tcp']
     mock_host.__getitem__ = lambda self, proto: tcp_ports
-    mock_nm.__getitem__ = lambda self, host: mock_host
+    mock_nm.__getitem__ = lambda self, host: mock_host if host == ip else MagicMock()
     return mock_nm
 
 
@@ -89,3 +91,10 @@ def test_scan_host_returns_empty_when_host_unreachable():
         result = scan_host('192.168.1.99')
 
     assert result == []
+
+
+def test_scan_host_raises_runtime_error_on_nmap_failure():
+    with patch('port_scanner.nmap.PortScanner') as mock_cls:
+        mock_cls.return_value.scan.side_effect = nmap.PortScannerError('nmap not found')
+        with pytest.raises(RuntimeError, match='nmap port scan failed'):
+            scan_host('192.168.1.1')

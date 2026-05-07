@@ -23,7 +23,10 @@ def scan_host(
         args += f' -p {ports}'
     elif top_ports:
         args += f' --top-ports {top_ports}'
-    nm.scan(hosts=ip, arguments=args)
+    try:
+        nm.scan(hosts=ip, arguments=args)
+    except nmap.PortScannerError as e:
+        raise RuntimeError(f"nmap port scan failed for {ip}: {e}") from e
 
     if ip not in nm.all_hosts():
         return []
@@ -35,11 +38,11 @@ def scan_host(
             cpes = [cpe_raw] if cpe_raw else []
             product = data.get('product', '')
             version = data.get('version', '')
-            version_str = f"{product} {version}".strip()
+            version_str = " ".join(filter(None, [product, version]))
             results.append(PortResult(
                 port=port,
                 protocol=proto,
-                state=data['state'],
+                state=data.get('state', ''),
                 service=data.get('name', ''),
                 version=version_str,
                 cpes=cpes,
