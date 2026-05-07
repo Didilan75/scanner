@@ -51,9 +51,6 @@ def main() -> None:
         console.print(f'[red]Error: {e}[/red]')
         sys.exit(1)
 
-    console.print(f'\n[bold cyan]Subnet Scanner Agent[/bold cyan]')
-    console.print(f'Detected subnet: [bold]{subnet}[/bold]\n')
-
     with make_progress() as progress:
         task = progress.add_task('Discovering hosts...', total=None)
         try:
@@ -97,9 +94,12 @@ def main() -> None:
 
     if args.output:
         data = serialize_results(subnet, scan_results)
-        with open(args.output, 'w') as f:
-            json.dump(data, f, indent=2)
-        console.print(f'\n[green]Report saved to {args.output}[/green]')
+        try:
+            with open(args.output, 'w') as f:
+                json.dump(data, f, indent=2)
+            console.print(f'\n[green]Report saved to {args.output}[/green]')
+        except OSError as e:
+            console.print(f'[red]Error saving report to {args.output}: {e}[/red]')
 
 
 if __name__ == '__main__':
