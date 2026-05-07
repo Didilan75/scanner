@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+
+from port_scanner import PortResult
+from cve import CVEResult
 
 console = Console()
 
@@ -31,16 +35,16 @@ def print_summary(subnet: str, alive_ips: list[str]) -> None:
     console.print(f"[green]{len(alive_ips)} hosts alive[/green]\n")
 
 
-def print_host(ip: str, ports: list, cve_map: dict) -> None:
-    console.print(f"\n[bold blue]{ip}[/bold blue]")
+def print_host(ip: str, ports: list[PortResult], cve_map: dict[str, list[CVEResult]]) -> None:
+    console.print(f"\n[bold blue]{escape(ip)}[/bold blue]")
     if not ports:
         console.print("  [dim]no open ports found[/dim]")
         return
     for port in ports:
-        version_part = f"  [dim]{port.version}[/dim]" if port.version else ''
+        version_part = f"  [dim]{escape(port.version)}[/dim]" if port.version else ''
         console.print(
             f"  [cyan]{port.port}/{port.protocol}[/cyan]  "
-            f"[white]{port.service}[/white]{version_part}"
+            f"[white]{escape(port.service)}[/white]{version_part}"
         )
         host_cves = [c for cpe in port.cpes for c in cve_map.get(cpe, [])]
         if not port.cpes:
@@ -50,10 +54,10 @@ def print_host(ip: str, ports: list, cve_map: dict) -> None:
         for cve in host_cves:
             color = _cvss_color(cve.cvss_score)
             label = _severity_label(cve.cvss_score)
-            desc = cve.description[:80]
+            desc = escape(cve.description[:80])
             console.print(
-                f"             [{color}]{cve.cve_id}  {cve.cvss_score}  "
-                f"[{label}][/{color}]  {desc}"
+                f"             [{color}]{escape(cve.cve_id)}  {cve.cvss_score}  "
+                f"\\[{label}\\][/{color}]  {desc}"
             )
 
 
@@ -64,7 +68,7 @@ def print_final_summary(total_hosts: int, total_ports: int, total_cves: int) -> 
     )
 
 
-def make_progress(description: str) -> Progress:
+def make_progress() -> Progress:
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -75,7 +79,7 @@ def make_progress(description: str) -> Progress:
     )
 
 
-def serialize_results(subnet: str, scan_results: list) -> dict:
+def serialize_results(subnet: str, scan_results: list[dict]) -> dict:
     return {
         'subnet': subnet,
         'scan_time': datetime.now(timezone.utc).isoformat(),
