@@ -56,7 +56,11 @@ def main() -> None:
 
     with make_progress() as progress:
         task = progress.add_task('Discovering hosts...', total=None)
-        alive = discover_hosts(subnet)
+        try:
+            alive = discover_hosts(subnet)
+        except RuntimeError as e:
+            console.print(f'[red]Error during host discovery: {e}[/red]')
+            sys.exit(1)
         progress.update(task, completed=1, total=1)
 
     print_summary(subnet, alive)
@@ -72,7 +76,12 @@ def main() -> None:
     with make_progress() as progress:
         task = progress.add_task('Scanning ports and looking up CVEs...', total=len(alive))
         for ip in alive:
-            ports = scan_host(ip, ports=args.ports, top_ports=args.top_ports)
+            try:
+                ports = scan_host(ip, ports=args.ports, top_ports=args.top_ports)
+            except RuntimeError as e:
+                console.print(f'[yellow]Warning: port scan failed for {ip}: {e}[/yellow]')
+                progress.advance(task)
+                continue
             cve_map: dict = {}
             for port in ports:
                 for cpe in port.cpes:

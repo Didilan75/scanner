@@ -99,3 +99,36 @@ def test_main_exits_when_no_hosts_found():
          patch('main.print_summary'), \
          patch('main.make_progress', mock_progress):
         m.main()
+
+
+def test_main_exits_when_host_discovery_fails():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+
+    with patch('sys.argv', ['main.py']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', side_effect=RuntimeError('nmap ping sweep failed')), \
+         patch('main.print_summary'), \
+         patch('main.make_progress', mock_progress), \
+         pytest.raises(SystemExit) as exc_info:
+        m.main()
+
+    assert exc_info.value.code == 1
+
+
+def test_main_skips_host_when_port_scan_fails():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+
+    with patch('sys.argv', ['main.py']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1', '192.168.1.2']), \
+         patch('main.scan_host', side_effect=[RuntimeError('scan failed'), MOCK_PORTS]), \
+         patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.print_summary'), \
+         patch('main.print_host'), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress):
+        m.main()
