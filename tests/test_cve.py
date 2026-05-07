@@ -120,8 +120,9 @@ def test_lookup_cves_retries_once_on_429():
     ])
     with patch('cve.requests.get', mock_get), \
          patch('cve._wait_for_rate_limit'), \
-         patch('cve.time.sleep'):
+         patch('cve.time.sleep') as mock_sleep:
         result = lookup_cves('cpe:/a:test:test:1.0')
 
     assert mock_get.call_count == 2
     assert result == []
+    mock_sleep.assert_called_once_with(30)

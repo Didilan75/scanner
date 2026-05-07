@@ -1,3 +1,4 @@
+import threading
 import time
 import requests
 from dataclasses import dataclass
@@ -11,20 +12,21 @@ class CVEResult:
     description: str
 
 
+_rate_lock = threading.Lock()
 _last_request_times: list[float] = []
 _RATE_WINDOW = 30.0
 
 
 def _wait_for_rate_limit(api_key: str | None) -> None:
-    global _last_request_times
-    limit = 50 if api_key else 5
-    now = time.time()
-    _last_request_times = [t for t in _last_request_times if now - t < _RATE_WINDOW]
-    if len(_last_request_times) >= limit:
-        sleep_time = _RATE_WINDOW - (now - _last_request_times[0])
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-    _last_request_times.append(time.time())
+    with _rate_lock:
+        limit = 50 if api_key else 5
+        now = time.time()
+        _last_request_times[:] = [t for t in _last_request_times if now - t < _RATE_WINDOW]
+        if len(_last_request_times) >= limit:
+            sleep_time = _RATE_WINDOW - (now - _last_request_times[0])
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+        _last_request_times.append(time.time())
 
 
 def _extract_cvss(metrics: dict) -> tuple[float, str]:
@@ -46,12 +48,13 @@ def lookup_cves(cpe: str, api_key: str | None = None) -> list[CVEResult]:
     headers = {}
     if api_key:
         headers['apiKey'] = api_key
-    params = {'cpeName': cpe, 'resultsPerPage': 10}
+    params = {'cpeName': cpe, 'resultsPerPage': 100}
 
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code == 429:
             time.sleep(30)
+            _wait_for_rate_limit(api_key)  # register the retry
             resp = requests.get(url, headers=headers, params=params, timeout=10)
         resp.raise_for_status()
     except requests.RequestException:
