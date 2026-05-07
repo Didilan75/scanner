@@ -28,6 +28,8 @@ def get_local_subnet() -> str:
     for iface_addrs in psutil.net_if_addrs().values():
         for addr in iface_addrs:
             if addr.family == socket.AF_INET and addr.address == local_ip:
+                if not addr.netmask:
+                    continue
                 network = ipaddress.ip_network(
                     f"{local_ip}/{addr.netmask}", strict=False
                 )

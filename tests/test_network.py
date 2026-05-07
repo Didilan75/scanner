@@ -1,5 +1,6 @@
 import ipaddress
 import socket
+import pytest
 from unittest.mock import patch, MagicMock
 from network import get_local_subnet
 
@@ -24,8 +25,6 @@ def test_get_local_subnet_returns_cidr():
         result = get_local_subnet()
 
     assert result == '192.168.1.0/24'
-    import ipaddress as ip_mod
-    assert str(ip_mod.ip_network(result, strict=True)) == '192.168.1.0/24'
 
 
 def test_get_local_subnet_raises_on_socket_error():
@@ -34,12 +33,9 @@ def test_get_local_subnet_raises_on_socket_error():
     mock_sock.__exit__ = MagicMock(return_value=False)
     mock_sock.connect.side_effect = OSError('Network unreachable')
 
-    with patch('network.socket.socket', return_value=mock_sock):
-        try:
-            get_local_subnet()
-            assert False, 'Expected RuntimeError'
-        except RuntimeError as e:
-            assert 'detect' in str(e).lower()
+    with patch('network.socket.socket', return_value=mock_sock), \
+         pytest.raises(RuntimeError, match='detect'):
+        get_local_subnet()
 
 
 def test_get_local_subnet_raises_when_ip_not_in_interfaces():
@@ -48,11 +44,7 @@ def test_get_local_subnet_raises_when_ip_not_in_interfaces():
     mock_sock.__exit__ = MagicMock(return_value=False)
     mock_sock.getsockname.return_value = ('10.0.0.1', 0)
 
-    # Interface list does NOT contain 10.0.0.1
     with patch('network.socket.socket', return_value=mock_sock), \
-         patch('network.psutil.net_if_addrs', return_value=_make_mock_addrs('192.168.1.100', '255.255.255.0')):
-        try:
-            get_local_subnet()
-            assert False, 'Expected RuntimeError'
-        except RuntimeError as e:
-            assert 'detect' in str(e).lower()
+         patch('network.psutil.net_if_addrs', return_value=_make_mock_addrs('192.168.1.100', '255.255.255.0')), \
+         pytest.raises(RuntimeError, match='detect'):
+        get_local_subnet()
