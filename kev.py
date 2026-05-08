@@ -47,7 +47,7 @@ def load_kev_catalog(
     if kev_file is not None:
         try:
             return _load_json(Path(kev_file))
-        except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        except (FileNotFoundError, json.JSONDecodeError) as e:
             warnings.warn(
                 f'KEV file load failed ({e}). Exploit status will not be shown.',
                 stacklevel=2,
@@ -61,7 +61,7 @@ def load_kev_catalog(
         if age < _CACHE_MAX_AGE:
             try:
                 return _load_json(cache_path)
-            except (json.JSONDecodeError, KeyError):
+            except json.JSONDecodeError:
                 cache_path.unlink(missing_ok=True)
 
     try:
