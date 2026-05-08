@@ -126,3 +126,11 @@ def test_lookup_cves_retries_once_on_429():
     assert mock_get.call_count == 2
     assert result == []
     mock_sleep.assert_called_once_with(30)
+
+
+def test_cve_result_kev_defaults_false():
+    cve = CVEResult(
+        cve_id='CVE-2021-44228', cvss_score=10.0,
+        severity='CRITICAL', description='Log4Shell',
+    )
+    assert cve.kev is False

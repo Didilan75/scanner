@@ -10,6 +10,7 @@ class CVEResult:
     cvss_score: float
     severity: str
     description: str
+    kev: bool = False
 
 
 _rate_lock = threading.Lock()
