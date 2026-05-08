@@ -2,11 +2,15 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from network import get_local_subnet
 from discovery import discover_hosts
 from port_scanner import scan_host
 from cve import lookup_cves
+from kev import load_kev_catalog
+from html_reporter import generate_html, save_and_open
 from reporter import (
     console,
     make_progress,
@@ -39,6 +43,14 @@ def main() -> None:
         help='NVD API key (or set NVD_API_KEY env var)',
     )
     parser.add_argument('--output', help='Save results as JSON to this path')
+    parser.add_argument(
+        '--html', action='store_true',
+        help='Generate HTML dashboard and open in browser',
+    )
+    parser.add_argument(
+        '--kev-file', dest='kev_file',
+        help='Path to local CISA KEV catalog JSON (skips download)',
+    )
     args = parser.parse_args()
 
     if not _check_nmap():
@@ -50,6 +62,8 @@ def main() -> None:
     except RuntimeError as e:
         console.print(f'[red]Error: {e}[/red]')
         sys.exit(1)
+
+    kev_set = load_kev_catalog(kev_file=args.kev_file)
 
     with make_progress() as progress:
         task = progress.add_task('Discovering hosts...', total=None)
@@ -83,7 +97,10 @@ def main() -> None:
             for port in ports:
                 for cpe in port.cpes:
                     if cpe not in cve_map:
-                        cve_map[cpe] = lookup_cves(cpe, api_key=args.nvd_key)
+                        cves = lookup_cves(cpe, api_key=args.nvd_key)
+                        for cve in cves:
+                            cve.kev = cve.cve_id in kev_set
+                        cve_map[cpe] = cves
             print_host(ip, ports, cve_map)
             scan_results.append({'ip': ip, 'ports': ports, 'cve_map': cve_map})
             total_ports += len(ports)
@@ -100,6 +117,13 @@ def main() -> None:
             console.print(f'\n[green]Report saved to {args.output}[/green]')
         except OSError as e:
             console.print(f'[red]Error saving report to {args.output}: {e}[/red]')
+
+    if args.html:
+        scan_time = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        html = generate_html(subnet, scan_time, scan_results)
+        html_path = Path(f'scanner_report_{timestamp}.html')
+        save_and_open(html, html_path)
 
 
 if __name__ == '__main__':

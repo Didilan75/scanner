@@ -44,6 +44,7 @@ def test_main_runs_full_pipeline_without_output():
          patch('main.discover_hosts', return_value=['192.168.1.1']), \
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -62,6 +63,7 @@ def test_main_saves_json_output(tmp_path):
          patch('main.discover_hosts', return_value=['192.168.1.1']), \
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -96,6 +98,7 @@ def test_main_exits_when_no_hosts_found():
          patch('main._check_nmap', return_value=True), \
          patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
          patch('main.discover_hosts', return_value=[]), \
+         patch('main.load_kev_catalog', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.make_progress', mock_progress):
         m.main()
@@ -109,6 +112,7 @@ def test_main_exits_when_host_discovery_fails():
          patch('main._check_nmap', return_value=True), \
          patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
          patch('main.discover_hosts', side_effect=RuntimeError('nmap ping sweep failed')), \
+         patch('main.load_kev_catalog', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.make_progress', mock_progress), \
          pytest.raises(SystemExit) as exc_info:
@@ -127,8 +131,82 @@ def test_main_skips_host_when_port_scan_fails():
          patch('main.discover_hosts', return_value=['192.168.1.1', '192.168.1.2']), \
          patch('main.scan_host', side_effect=[RuntimeError('scan failed'), MOCK_PORTS]), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
          patch('main.make_progress', mock_progress):
         m.main()
+
+
+def test_main_html_flag_generates_and_opens_dashboard():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+
+    with patch('sys.argv', ['main.py', '--html']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1']), \
+         patch('main.scan_host', return_value=MOCK_PORTS), \
+         patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.print_summary'), \
+         patch('main.print_host'), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress), \
+         patch('main.generate_html', return_value='<html></html>') as mock_gen, \
+         patch('main.save_and_open') as mock_open:
+        m.main()
+
+    mock_gen.assert_called_once()
+    mock_open.assert_called_once()
+
+
+def test_main_kev_file_flag_passed_to_load_kev_catalog():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+
+    with patch('sys.argv', ['main.py', '--kev-file', 'my_kev.json']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1']), \
+         patch('main.scan_host', return_value=MOCK_PORTS), \
+         patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()) as mock_kev, \
+         patch('main.print_summary'), \
+         patch('main.print_host'), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress):
+        m.main()
+
+    mock_kev.assert_called_once_with(kev_file='my_kev.json')
+
+
+def test_main_stamps_kev_on_matching_cves():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+    stamped_flags = []
+
+    def capture_print_host(ip, ports, cve_map):
+        for cves in cve_map.values():
+            stamped_flags.extend(c.kev for c in cves)
+
+    kev_cve = CVEResult(
+        cve_id='CVE-2023-38408', cvss_score=9.8,
+        severity='CRITICAL', description='RCE',
+    )
+
+    with patch('sys.argv', ['main.py']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1']), \
+         patch('main.scan_host', return_value=MOCK_PORTS), \
+         patch('main.lookup_cves', return_value=[kev_cve]), \
+         patch('main.load_kev_catalog', return_value={'CVE-2023-38408'}), \
+         patch('main.print_summary'), \
+         patch('main.print_host', side_effect=capture_print_host), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress):
+        m.main()
+
+    assert any(stamped_flags), 'Expected CVE-2023-38408 to be stamped kev=True'
