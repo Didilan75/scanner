@@ -55,9 +55,10 @@ def print_host(ip: str, ports: list[PortResult], cve_map: dict[str, list[CVEResu
             color = _cvss_color(cve.cvss_score)
             label = _severity_label(cve.cvss_score)
             desc = escape(cve.description[:80])
+            kev_badge = '  [bold red][KEV][/bold red]' if cve.kev else ''
             console.print(
                 f"             [{color}]{escape(cve.cve_id)}  {cve.cvss_score}  "
-                f"\\[{label}\\][/{color}]  {desc}"
+                f"\\[{label}\\][/{color}]{kev_badge}  {desc}"
             )
 
 
@@ -99,6 +100,7 @@ def serialize_results(subnet: str, scan_results: list[dict]) -> dict:
                                 'cvss_score': c.cvss_score,
                                 'severity': c.severity,
                                 'description': c.description,
+                                'kev': c.kev,
                             }
                             for cpe in p.cpes
                             for c in entry['cve_map'].get(cpe, [])
