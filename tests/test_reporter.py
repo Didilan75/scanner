@@ -101,3 +101,38 @@ def test_serialize_results_includes_kev_field():
     scan_results = [{'ip': '192.168.1.1', 'ports': [port], 'cve_map': {'cpe:/a:openbsd:openssh:7.9': [cve]}}]
     output = serialize_results('192.168.1.0/24', scan_results)
     assert output['hosts'][0]['ports'][0]['cves'][0]['kev'] is True
+
+
+def test_print_host_shows_exploit_badge():
+    from io import StringIO
+    from unittest.mock import patch
+    from rich.console import Console
+    import reporter
+
+    port = PortResult(
+        port=80, protocol='tcp', state='open', service='http',
+        version='Apache 2.4.41', cpes=['cpe:/a:apache'],
+    )
+    cve = CVEResult(
+        cve_id='CVE-2021-41773', cvss_score=9.8,
+        severity='CRITICAL', description='Path traversal', exploit_available=True,
+    )
+    buf = StringIO()
+    test_console = Console(file=buf, highlight=False, markup=True)
+    with patch.object(reporter, 'console', test_console):
+        reporter.print_host('192.168.1.1', [port], {'cpe:/a:apache': [cve]})
+    assert '[EXPLOIT]' in buf.getvalue()
+
+
+def test_serialize_results_includes_exploit_available_field():
+    port = PortResult(
+        port=22, protocol='tcp', state='open', service='ssh',
+        version='OpenSSH 7.9', cpes=['cpe:/a:openbsd:openssh:7.9'],
+    )
+    cve = CVEResult(
+        cve_id='CVE-2023-38408', cvss_score=9.8,
+        severity='CRITICAL', description='RCE', exploit_available=True,
+    )
+    scan_results = [{'ip': '192.168.1.1', 'ports': [port], 'cve_map': {'cpe:/a:openbsd:openssh:7.9': [cve]}}]
+    output = serialize_results('192.168.1.0/24', scan_results)
+    assert output['hosts'][0]['ports'][0]['cves'][0]['exploit_available'] is True
