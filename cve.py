@@ -11,6 +11,7 @@ class CVEResult:
     severity: str
     description: str
     kev: bool = False
+    exploit_available: bool = False
 
 
 _rate_lock = threading.Lock()

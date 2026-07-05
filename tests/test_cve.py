@@ -134,3 +134,11 @@ def test_cve_result_kev_defaults_false():
         severity='CRITICAL', description='Log4Shell',
     )
     assert cve.kev is False
+
+
+def test_cve_result_exploit_available_defaults_false():
+    cve = CVEResult(
+        cve_id='CVE-2021-41773', cvss_score=9.8,
+        severity='CRITICAL', description='Path traversal',
+    )
+    assert cve.exploit_available is False
