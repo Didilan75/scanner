@@ -29,6 +29,7 @@ h1 { color: #38bdf8; font-size: 1.5rem; margin-bottom: 0.25rem; }
 .cve-row { font-size: 0.8rem; padding: 0.15rem 0; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .sev-badge { border-radius: 0.2rem; padding: 0.05rem 0.35rem; font-size: 0.7rem; font-weight: bold; color: #0f172a; }
 .kev-badge { background: #ef4444; color: #fff; border-radius: 0.2rem; padding: 0.05rem 0.4rem; font-size: 0.7rem; font-weight: bold; }
+.exploit-badge { background: #a855f7; color: #fff; border-radius: 0.2rem; padding: 0.05rem 0.4rem; font-size: 0.7rem; font-weight: bold; }
 .cve-desc { color: #94a3b8; }
 .no-data { color: #475569; font-style: italic; font-size: 0.8rem; padding: 0.2rem 0; }
 </style>
@@ -106,6 +107,9 @@ DATA.hosts.forEach(h => {
         if (c.kev) {
           const kb = mk('span', 'kev-badge'); kb.append(txt('KEV')); cr.appendChild(kb);
         }
+        if (c.exploit_available) {
+          const eb = mk('span', 'exploit-badge'); eb.append(txt('EXPLOIT')); cr.appendChild(eb);
+        }
 
         const desc = mk('span', 'cve-desc'); desc.append(txt(c.description)); cr.appendChild(desc);
         cl.appendChild(cr);
@@ -137,6 +141,7 @@ def _build_data(subnet: str, scan_time: str, scan_results: list[dict]) -> dict:
                         'severity': c.severity,
                         'description': c.description[:80],
                         'kev': c.kev,
+                        'exploit_available': c.exploit_available,
                     })
             ports.append({
                 'port': p.port,
