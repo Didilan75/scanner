@@ -45,6 +45,7 @@ def test_main_runs_full_pipeline_without_output():
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -64,6 +65,7 @@ def test_main_saves_json_output(tmp_path):
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -99,6 +101,7 @@ def test_main_exits_when_no_hosts_found():
          patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
          patch('main.discover_hosts', return_value=[]), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.make_progress', mock_progress):
         m.main()
@@ -113,6 +116,7 @@ def test_main_exits_when_host_discovery_fails():
          patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
          patch('main.discover_hosts', side_effect=RuntimeError('nmap ping sweep failed')), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.make_progress', mock_progress), \
          pytest.raises(SystemExit) as exc_info:
@@ -132,6 +136,7 @@ def test_main_skips_host_when_port_scan_fails():
          patch('main.scan_host', side_effect=[RuntimeError('scan failed'), MOCK_PORTS]), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -150,6 +155,7 @@ def test_main_html_flag_generates_and_opens_dashboard():
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
          patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -173,6 +179,7 @@ def test_main_kev_file_flag_passed_to_load_kev_catalog():
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=MOCK_CVES), \
          patch('main.load_kev_catalog', return_value=set()) as mock_kev, \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host'), \
          patch('main.print_final_summary'), \
@@ -203,6 +210,7 @@ def test_main_stamps_kev_on_matching_cves():
          patch('main.scan_host', return_value=MOCK_PORTS), \
          patch('main.lookup_cves', return_value=[kev_cve]), \
          patch('main.load_kev_catalog', return_value={'CVE-2023-38408'}), \
+         patch('main.load_exploitdb_cves', return_value=set()), \
          patch('main.print_summary'), \
          patch('main.print_host', side_effect=capture_print_host), \
          patch('main.print_final_summary'), \
@@ -210,3 +218,55 @@ def test_main_stamps_kev_on_matching_cves():
         m.main()
 
     assert any(stamped_flags), 'Expected CVE-2023-38408 to be stamped kev=True'
+
+
+def test_main_exploitdb_file_flag_passed_to_load_exploitdb_cves():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+
+    with patch('sys.argv', ['main.py', '--exploitdb-file', 'my_exploits.csv']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1']), \
+         patch('main.scan_host', return_value=MOCK_PORTS), \
+         patch('main.lookup_cves', return_value=MOCK_CVES), \
+         patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value=set()) as mock_exploitdb, \
+         patch('main.print_summary'), \
+         patch('main.print_host'), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress):
+        m.main()
+
+    mock_exploitdb.assert_called_once_with(exploitdb_file='my_exploits.csv')
+
+
+def test_main_stamps_exploit_available_on_matching_cves():
+    import main as m
+    mock_progress, _ = _make_progress_mock()
+    stamped_flags = []
+
+    def capture_print_host(ip, ports, cve_map):
+        for cves in cve_map.values():
+            stamped_flags.extend(c.exploit_available for c in cves)
+
+    exploit_cve = CVEResult(
+        cve_id='CVE-2023-38408', cvss_score=9.8,
+        severity='CRITICAL', description='RCE',
+    )
+
+    with patch('sys.argv', ['main.py']), \
+         patch('main._check_nmap', return_value=True), \
+         patch('main.get_local_subnet', return_value='192.168.1.0/24'), \
+         patch('main.discover_hosts', return_value=['192.168.1.1']), \
+         patch('main.scan_host', return_value=MOCK_PORTS), \
+         patch('main.lookup_cves', return_value=[exploit_cve]), \
+         patch('main.load_kev_catalog', return_value=set()), \
+         patch('main.load_exploitdb_cves', return_value={'CVE-2023-38408'}), \
+         patch('main.print_summary'), \
+         patch('main.print_host', side_effect=capture_print_host), \
+         patch('main.print_final_summary'), \
+         patch('main.make_progress', mock_progress):
+        m.main()
+
+    assert any(stamped_flags), 'Expected CVE-2023-38408 to be stamped exploit_available=True'

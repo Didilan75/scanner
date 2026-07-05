@@ -10,6 +10,7 @@ from discovery import discover_hosts
 from port_scanner import scan_host
 from cve import lookup_cves
 from kev import load_kev_catalog
+from exploitdb import load_exploitdb_cves
 from html_reporter import generate_html, save_and_open
 from reporter import (
     console,
@@ -51,6 +52,10 @@ def main() -> None:
         '--kev-file', dest='kev_file',
         help='Path to local CISA KEV catalog JSON (skips download)',
     )
+    parser.add_argument(
+        '--exploitdb-file', dest='exploitdb_file',
+        help='Path to local ExploitDB CSV index (skips download)',
+    )
     args = parser.parse_args()
 
     if not _check_nmap():
@@ -64,6 +69,7 @@ def main() -> None:
         sys.exit(1)
 
     kev_set = load_kev_catalog(kev_file=args.kev_file)
+    exploit_set = load_exploitdb_cves(exploitdb_file=args.exploitdb_file)
 
     with make_progress() as progress:
         task = progress.add_task('Discovering hosts...', total=None)
@@ -100,6 +106,7 @@ def main() -> None:
                         cves = lookup_cves(cpe, api_key=args.nvd_key)
                         for cve in cves:
                             cve.kev = cve.cve_id in kev_set
+                            cve.exploit_available = cve.cve_id in exploit_set
                         cve_map[cpe] = cves
             print_host(ip, ports, cve_map)
             scan_results.append({'ip': ip, 'ports': ports, 'cve_map': cve_map})
